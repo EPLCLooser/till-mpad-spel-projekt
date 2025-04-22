@@ -2,48 +2,70 @@ import serial.tools.list_ports
 import time
 import pygame
 import sys
+import random
 
-# global variables
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+SHOOT_COOLDOWN = 0.5
+ENEMY_SPAWN_INTERVAL = 5
+BULLET_SPEED = 15
+ENEMY_SPEED = 60
+global bullet
 
 # Initialize Pygame
 pygame.init()
-
-# Set up the game window
-screen_width = 800
-screen_height = 600
-screen = pygame.display.set_mode((screen_width, screen_height))
-pygame.display.set_caption("Star blaster")
-
-# Load the background image
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Star Blaster")
 background = pygame.image.load("background_img.png")
-background = pygame.transform.scale(background, (screen_width, screen_height))
+background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
+
+# Initialize the mixer for sounds
+pygame.mixer.init()
+pygame.mixer.music.load("Background_music.mp3")
+pygame.mixer.music.play(-1)
+gameoversound = pygame.mixer.Sound('gameover_sound.mp3')
+shootingsound = pygame.mixer.Sound('shooting_sound.mp3')
+
 
 # game over function
-
 def gameOver():
+    global kill_count
     global running
-    game_over = Text(screen_width/2, screen_height/2, "Impact", 90, "Game Over", (255, 0, 0))
+    game_over = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, "Impact", 90, "Game Over", (255, 0, 0))
+    highscore()
     all_sprites.add(game_over)
+    pygame.mixer.Sound.play(gameoversound)
+    pygame.mixer.music.stop()
     while running:
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if pygame.key.get_pressed()[pygame.K_ESCAPE]:
+            if event.type == pygame.QUIT or pygame.key.get_pressed()[pygame.K_ESCAPE]:
                 running = False
 
-        # Draw the background
+        # Draw the background and all sprites
         screen.blit(background, (0, 0))
-
-        # Draw all sprites
         all_sprites.draw(screen)
-
-        # Update the display
         pygame.display.update()
+    return
 
-# Define the Player sprite class
+def highscore():
+    global kill_count
+    highscore = open("high_score.txt")
+    highscore_value = int(highscore.read())
+    highscore.close()
+    if highscore_value < kill_count:
+        highscore = open("high_score.txt", "w")
+        print(kill_count)
+        highscore.write(str(kill_count))
+        highscore = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 60, "New High Score: {}".format(kill_count), (255, 0, 0))
+    else:
+        highscore = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 90, "High Score: {}".format(highscore_value), (255, 0, 0))
+    all_sprites.add(highscore)
+
+
+# Classes
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
-        global screen_height, screen_width
         super().__init__()
         self.image = pygame.image.load("pixel-art-rocket.png") 
         self.image = pygame.transform.scale(self.image, (80, 100))  # Scale the image to a smaller size
@@ -53,7 +75,6 @@ class Player(pygame.sprite.Sprite):
 
     def updatePlayer(self, input):
         global shot_time
-        shoot_cooldown = 0.5
         try:
             if input[0] >= 10:
                 self.rect.x -= int((input[0] - 10) * (4 - 1) / (45 - 10) + 1)
@@ -63,38 +84,36 @@ class Player(pygame.sprite.Sprite):
                 self.rect.y -= int((abs(input[1]) - 10) * (4 - 1) / (45 - 10) + 1)
             elif input[1] >= 10:
                 self.rect.y += int((input[1] - 10) * (4 - 1) / (45 - 10) + 1)
-            if input[2] == 1:
-                if time.time() - shot_time >= shoot_cooldown:
-                    print(time.time())
+
+            # Shooting
+            if input[2] == 1 and time.time() - shot_time >= SHOOT_COOLDOWN:
                     shot_time = time.time()
+                    pygame.mixer.Sound.play(shootingsound)
                     bullet = Bullet(self)
                     all_sprites.add(bullet)
+
         except IndexError:
             pass
+
         # Keep the player within screen boundaries
-        if self.rect.left < 0:
-            self.rect.left = 0
-        if self.rect.right > screen_width:
-            self.rect.right = screen_width
-        if self.rect.top < 0:
-            self.rect.top = 0
-        if self.rect.bottom > screen_height:
-            self.rect.bottom = screen_height
+        self.rect.clamp_ip(pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+
+        # Check for collision with enemies
+        if pygame.sprite.spritecollideany(self, enemies): 
+            self.kill()
+            gameOver()   
 
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, player):
         super().__init__()
-        self.image = pygame.Surface((10, 20))  # Create a white rectangle for the bullet
-        self.image.fill((255, 255, 255))  # Fill the rectangle with white color
+        self.image = pygame.Surface((10, 20))
+        self.image.fill((255, 255, 255))
         self.rect = self.image.get_rect()
-        # Position the bullet at the top center of the player
         self.rect.centerx = player.rect.centerx
         self.rect.top = player.rect.top
 
     def update(self):
-        # Move the bullet upward
-        self.rect.y -= 15
-        # Remove the bullet if it goes off-screen
+        self.rect.y -= BULLET_SPEED
         if self.rect.bottom < 0:
             self.kill()
 
@@ -102,37 +121,33 @@ class Enemy(pygame.sprite.Sprite):
     def __init__(self, x):
         super().__init__()
         self.image = pygame.image.load("monster.png")
-        self.image = pygame.transform.scale(self.image, (60, 60))  # Scale the image to a smaller size
+        self.image = pygame.transform.scale(self.image, (60, 60))
         self.rect = self.image.get_rect()
-        self.rect.center = (x, 30)
+        self.rect.topright = (x, 0)
 
-    def update(self):
-        global enemy_spawn_time
-        # Move the enemy downward
-        self.rect.y += 5
-        # Remove the enemy if it goes off-screen
-        if self.rect.bottom > screen_height:
-            gameOver()
-        
-
+    def update(self, move=False):
+        if move:
+            self.rect.y += ENEMY_SPEED
+            if self.rect.bottom >= SCREEN_HEIGHT:
+                gameOver()
 
 class Text(pygame.sprite.Sprite):
     def __init__(self, x, y, font, font_size, text, color):
         super().__init__()
         self.font = pygame.font.SysFont(font, font_size)
-        self.image = self.font.render(text, True, color)
+        self.image = self.font.render(text, True, color) 
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
 
-    def update(self, direction=None):
-        if direction == "up":
-            self.rect.y -= 1
-        elif direction == "down":
-            self.rect.y += 1
-        elif direction == "kill":
+    def update(self, input=None):
+        if input == "kill":
             self.kill()
+        elif input == "update":
+            self.image = self.font.render(str(kill_count), True, (255, 255, 255)) 
+            self.rect.topleft = (30, 30)
 
-# Create a sprite group for all sprites
+# Create a sprite group for all enemies
+enemies = pygame.sprite.Group()
 all_sprites = pygame.sprite.Group()
 
 # Set up serial communication
@@ -154,47 +169,33 @@ except Exception as e:
 # Start screen
 start = False
 running = True
-game_header = Text(screen_width/2, screen_height/2, "Impact", 90, "Star Blaster", (255, 255, 255))
-press_start = Text(screen_width/2, screen_height/2 + 90, "Impact", 30, "Press The Button on Your Controller to Start", (255, 255, 255))
-all_sprites.add(game_header)
-all_sprites.add(press_start)
+game_header = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, "Impact", 90, "Star Blaster", (255, 255, 255))
+press_start = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 90, "Impact", 30, "Press The Button on Your Controller to Start", (255, 255, 255))
+all_sprites.add(game_header, press_start)
 dir_up = True
 distance_of_text = 10
 counter = 0
 
-
 while not start:
-    if dir_up:
-        game_header.update("up")
-    else:
-        game_header.update("down")
-
-    if counter == distance_of_text:
-        dir_up = not dir_up
-        counter = 0
-    counter += 1
 
     # Takes event and breaks the while loop
     for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            start = True
-            running = False 
-        if pygame.key.get_pressed()[pygame.K_ESCAPE]:
+        if event.type == pygame.QUIT or pygame.key.get_pressed()[pygame.K_ESCAPE]:
             start = True
             running = False
 
+    # Check for controller input
     if ser.in_waiting:
         inoInput = ser.readline().decode('utf-8', errors='ignore').strip()
         try:
             inputArr = list(map(int, inoInput.split(" ")))
+            if len(inputArr) == 3 and inputArr[2] == 1:
+                start = True
         except ValueError:
             print(f"Invalid input: {inoInput}")
             inputArr = [0, 0, 0]
 
-        if len(inputArr) == 3 and inputArr[2] == 1:
-            start = True
-    
-        # Draw the background
+    # Draw the start screen
     screen.blit(background, (0, 0))
 
     # Draw all sprites
@@ -203,24 +204,23 @@ while not start:
     # Update the display
     pygame.display.update()
 
-
 game_header.update("kill")
 press_start.update("kill")
 
 # add the player
-player = Player(screen_width/2, screen_height)
+player = Player(SCREEN_WIDTH/2, SCREEN_HEIGHT)
 all_sprites.add(player)
 
 # initialize time global variables
 shot_time = time.time() + 2 # to avoid the first shot immediately
-enemy_spawn_time = time.time() + 5 # to avoid the first enemy spawn immediately
-
-
+enemy_spawn_time = time.time() + 1 # to avoid the first enemy spawn immediately
+kill_count = 0
+kill_count_text = Text(30, 30, "Impact", 20, str(kill_count), (255, 255, 255))
+all_sprites.add(kill_count_text)
 
 # Game loop
 while running:
-
-    # Takes event and breaks the while loop
+    # Takes keyboard input and breaks the while loop if escape is pressed
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -236,15 +236,37 @@ while running:
             inputArr = [0, 0, 0]
         player.updatePlayer(inputArr)
 
-    # Update all sprites
+    # spawns random amount of enemies
+    if time.time() - enemy_spawn_time >= 5:
+        enemies.update(True)
+        enemy_spawn_time = time.time()
+        amount_of_enemies = random.randint(1, 10)
+        random_numbers = random.sample(range(1, 11), amount_of_enemies)
+        for n in range(amount_of_enemies):
+            x = random_numbers[n] * 80
+            if x > SCREEN_WIDTH:
+                x = SCREEN_WIDTH - 80
+            enemies.add(Enemy(x))
+
+    # Check for collisions between bullets and enemies
+    for bullet in all_sprites:
+        if isinstance(bullet, Bullet):
+            if pygame.sprite.spritecollide(bullet, enemies, True):
+                bullet.kill()  # Remove the bullet
+                kill_count += 1
+                kill_count_text.update("update")
+
+    # Update and draw everything
     all_sprites.update()
+    enemies.update()
 
     # Draw the background
     screen.blit(background, (0, 0))
 
     # Draw all sprites
+    enemies.draw(screen)
     all_sprites.draw(screen)
-    gameOver()
+
     # Update the display
     pygame.display.update()
 
