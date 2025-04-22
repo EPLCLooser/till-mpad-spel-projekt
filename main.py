@@ -15,6 +15,7 @@ ENEMY_SPEED = 60
 enemy_spawn_interval = 5
 text_timer = 0
 
+
 # Initialize Pygame
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -40,9 +41,7 @@ def gameOver():
     pygame.mixer.Sound.play(gameoversound)
     pygame.mixer.music.stop()
     while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT or pygame.key.get_pressed()[pygame.K_ESCAPE]:
-                running = False
+        running = exit()
 
         # Draw the background and all sprites
         screen.blit(background, (0, 0))
@@ -67,9 +66,10 @@ def highscore():
 def exit():
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            running = False
+            return False
         if pygame.key.get_pressed()[pygame.K_ESCAPE]:
-            running = False
+            return False
+    return True
 
 
 # Classes
@@ -188,10 +188,12 @@ counter = 0
 while not start:
 
     # Takes event and breaks the while loop
-    exit()
+    running = exit()
+    start = not running
 
     # Check for controller input
     if ser.in_waiting:
+        print ("HELLO")
         inoInput = ser.readline().decode('utf-8', errors='ignore').strip()
         try:
             inputArr = list(map(int, inoInput.split(" ")))
@@ -228,7 +230,7 @@ all_sprites.add(kill_count_text)
 # Game loop
 while running:
     # Takes keyboard input and breaks the while loop if escape is pressed
-    exit()
+    running = exit()
 
     if ser.in_waiting:
         inoInput = ser.readline().decode('utf-8', errors='ignore').strip()
