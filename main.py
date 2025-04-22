@@ -8,10 +8,12 @@ import random
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 SHOOT_COOLDOWN = 0.5
-ENEMY_SPAWN_INTERVAL = 5
 BULLET_SPEED = 15
 ENEMY_SPEED = 60
-global bullet
+
+# Variables
+enemy_spawn_interval = 5
+text_timer = 0
 
 # Initialize Pygame
 pygame.init()
@@ -61,6 +63,13 @@ def highscore():
     else:
         highscore = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 90, "High Score: {}".format(highscore_value), (255, 0, 0))
     all_sprites.add(highscore)
+
+def exit():
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if pygame.key.get_pressed()[pygame.K_ESCAPE]:
+            running = False
 
 
 # Classes
@@ -179,10 +188,7 @@ counter = 0
 while not start:
 
     # Takes event and breaks the while loop
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT or pygame.key.get_pressed()[pygame.K_ESCAPE]:
-            start = True
-            running = False
+    exit()
 
     # Check for controller input
     if ser.in_waiting:
@@ -214,6 +220,7 @@ all_sprites.add(player)
 # initialize time global variables
 shot_time = time.time() + 2 # to avoid the first shot immediately
 enemy_spawn_time = time.time() + 1 # to avoid the first enemy spawn immediately
+difficulty = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 40, "Difficulty Increased", (255, 0, 0))
 kill_count = 0
 kill_count_text = Text(30, 30, "Impact", 20, str(kill_count), (255, 255, 255))
 all_sprites.add(kill_count_text)
@@ -221,11 +228,7 @@ all_sprites.add(kill_count_text)
 # Game loop
 while running:
     # Takes keyboard input and breaks the while loop if escape is pressed
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if pygame.key.get_pressed()[pygame.K_ESCAPE]:
-            running = False
+    exit()
 
     if ser.in_waiting:
         inoInput = ser.readline().decode('utf-8', errors='ignore').strip()
@@ -237,7 +240,7 @@ while running:
         player.updatePlayer(inputArr)
 
     # spawns random amount of enemies
-    if time.time() - enemy_spawn_time >= 5:
+    if time.time() - enemy_spawn_time >= enemy_spawn_interval:
         enemies.update(True)
         enemy_spawn_time = time.time()
         amount_of_enemies = random.randint(1, 10)
@@ -255,6 +258,15 @@ while running:
                 bullet.kill()  # Remove the bullet
                 kill_count += 1
                 kill_count_text.update("update")
+
+                # increase the spawn rate of enemies
+                if kill_count % 5 == 0 and enemy_spawn_interval > 2:
+                    enemy_spawn_interval -= 0.5
+                    all_sprites.add(difficulty)
+                    text_timer = time.time()
+
+    if time.time() - text_timer >= 1:
+        difficulty.update("kill")
 
     # Update and draw everything
     all_sprites.update()
