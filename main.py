@@ -15,7 +15,6 @@ ENEMY_SPEED = 60
 enemy_spawn_interval = 5
 text_timer = 0
 
-
 # Initialize Pygame
 pygame.init()
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -29,6 +28,25 @@ pygame.mixer.music.load("Background_music.mp3")
 pygame.mixer.music.play(-1)
 gameoversound = pygame.mixer.Sound('gameover_sound.mp3')
 shootingsound = pygame.mixer.Sound('shooting_sound.mp3')
+
+def wave(wave_num):
+    global wave_text
+    global enemy_spawn_interval
+
+    wave_text = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 40, "Wave {}".format(wave_num), (255, 0, 0))
+    all_sprites.add(wave_text)
+
+    if wave_num == 1:
+        enemy_spawn_interval = 5
+        
+    elif wave_num == 2:
+        enemy_spawn_interval = 4.5
+    elif wave_num == 3:
+        enemy_spawn_interval = 4
+    elif wave_num == 4:
+        enemy_spawn_interval = 3.5
+    elif wave_num == 5:
+        enemy_spawn_interval = 3
 
 
 # game over function
@@ -56,7 +74,6 @@ def highscore():
     highscore.close()
     if highscore_value < kill_count:
         highscore = open("high_score.txt", "w")
-        print(kill_count)
         highscore.write(str(kill_count))
         highscore = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 60, "New High Score: {}".format(kill_count), (255, 0, 0))
     else:
@@ -96,10 +113,10 @@ class Player(pygame.sprite.Sprite):
 
             # Shooting
             if input[2] == 1 and time.time() - shot_time >= SHOOT_COOLDOWN:
-                    shot_time = time.time()
-                    pygame.mixer.Sound.play(shootingsound)
-                    bullet = Bullet(self)
-                    all_sprites.add(bullet)
+                shot_time = time.time()
+                pygame.mixer.Sound.play(shootingsound)
+                bullet = Bullet(self)
+                all_sprites.add(bullet)
 
         except IndexError:
             pass
@@ -193,7 +210,6 @@ while not start:
 
     # Check for controller input
     if ser.in_waiting:
-        print ("HELLO")
         inoInput = ser.readline().decode('utf-8', errors='ignore').strip()
         try:
             inputArr = list(map(int, inoInput.split(" ")))
@@ -247,7 +263,7 @@ while running:
         enemy_spawn_time = time.time()
         amount_of_enemies = random.randint(1, 10)
         random_numbers = random.sample(range(1, 11), amount_of_enemies)
-        for n in range(amount_of_enemies):
+        for n in range(len(enemy_layout)):
             x = random_numbers[n] * 80
             if x > SCREEN_WIDTH:
                 x = SCREEN_WIDTH - 80
@@ -269,6 +285,11 @@ while running:
 
     if time.time() - text_timer >= 1:
         difficulty.update("kill")
+
+    text_timer = time.time()
+
+    if time.time() - text_timer >= 1:
+        wave_text.update("kill")
 
     # Update and draw everything
     all_sprites.update()
