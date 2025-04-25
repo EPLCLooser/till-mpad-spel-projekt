@@ -38,15 +38,20 @@ def wave(wave_num):
 
     if wave_num == 1:
         enemy_spawn_interval = 5
-        
+        pattern = [[2, 5, 6, 9], [2, 3, 8, 9], [1, 4, 7, 10]]
     elif wave_num == 2:
         enemy_spawn_interval = 4.5
+        pattern = [[1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 3, 5, 7, 9], [2, 4, 6, 8, 10]]
     elif wave_num == 3:
         enemy_spawn_interval = 4
+        pattern = [[1, 2, 3, 4, 5, 6], [5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6], [5, 6, 7, 8, 9, 10]]
     elif wave_num == 4:
+        pattern = [[1, 2, 3, 4, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 4, 5, 6, 7, 9, 10]]
         enemy_spawn_interval = 3.5
     elif wave_num == 5:
+        pattern = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 10]]
         enemy_spawn_interval = 3
+    return pattern
 
 
 # game over function
@@ -242,6 +247,7 @@ difficulty = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 40, "Diffi
 kill_count = 0
 kill_count_text = Text(30, 30, "Impact", 20, str(kill_count), (255, 255, 255))
 all_sprites.add(kill_count_text)
+row = 0
 
 # Game loop
 while running:
@@ -257,17 +263,20 @@ while running:
             inputArr = [0, 0, 0]
         player.updatePlayer(inputArr)
 
-    # spawns random amount of enemies
+    # spawns enemies
     if time.time() - enemy_spawn_time >= enemy_spawn_interval:
         enemies.update(True)
         enemy_spawn_time = time.time()
-        amount_of_enemies = random.randint(1, 10)
-        random_numbers = random.sample(range(1, 11), amount_of_enemies)
-        for n in range(len(enemy_layout)):
-            x = random_numbers[n] * 80
-            if x > SCREEN_WIDTH:
-                x = SCREEN_WIDTH - 80
+        enemy_layout = wave(counter)
+        for n in range(len(enemy_layout[row])):
+            x = enemy_layout[row][n] * 80
             enemies.add(Enemy(x))
+        if row >= len(enemy_layout) - 1:
+            row = 0
+            if counter < 5:
+                counter += 1
+        else:
+            row += 1
 
     # Check for collisions between bullets and enemies
     for bullet in all_sprites:
