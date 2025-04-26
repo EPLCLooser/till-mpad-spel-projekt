@@ -7,13 +7,13 @@ import random
 # Constants
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
-SHOOT_COOLDOWN = 0.5
 BULLET_SPEED = 15
 ENEMY_SPEED = 60
 
 # Variables
 enemy_spawn_interval = 5
-text_timer = 0
+wave_text_timer = 0
+shoot_cooldown = 0.5
 
 # Initialize Pygame
 pygame.init()
@@ -30,27 +30,25 @@ gameoversound = pygame.mixer.Sound('gameover_sound.mp3')
 shootingsound = pygame.mixer.Sound('shooting_sound.mp3')
 
 def wave(wave_num):
-    global wave_text
     global enemy_spawn_interval
-
-    wave_text = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 40, "Wave {}".format(wave_num), (255, 0, 0))
-    all_sprites.add(wave_text)
-
+    if enemy_spawn_interval > 2:
+        enemy_spawn_interval -= 0.5
+    
+    if wave_num > 6:
+        wave_num = random.randrange(2, 6)
+    
     if wave_num == 1:
-        enemy_spawn_interval = 5
         pattern = [[2, 5, 6, 9], [2, 3, 8, 9], [1, 4, 7, 10]]
     elif wave_num == 2:
-        enemy_spawn_interval = 4.5
         pattern = [[1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 3, 5, 7, 9], [2, 4, 6, 8, 10]]
     elif wave_num == 3:
-        enemy_spawn_interval = 4
-        pattern = [[1, 2, 3, 4, 5, 6], [5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6], [5, 6, 7, 8, 9, 10]]
+        pattern = [[5, 6], [4, 5, 6, 7], [3, 4, 5, 6, 7, 8], [2, 3, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 8, 9], [3, 4, 7, 8]]
     elif wave_num == 4:
-        pattern = [[1, 2, 3, 4, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 4, 5, 6, 7, 9, 10]]
-        enemy_spawn_interval = 3.5
+        pattern = [[1, 2, 5, 6, 9, 10], [1, 2, 3, 4, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 4, 5, 6, 7, 9, 10]]
     elif wave_num == 5:
-        pattern = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 10]]
-        enemy_spawn_interval = 3
+        pattern = [[3, 8], [2, 3, 4, 7, 8, 9], [2, 3, 4, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [3, 4, 5, 6, 7, 8], [4, 5, 6, 7], [5, 6], [5], [6]]
+    else:
+        pattern = [[2, 4, 6, 8, 10], [2, 8], [2, 4, 6, 8, 10], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [2, 9]]
     return pattern
 
 
@@ -64,7 +62,7 @@ def gameOver():
     pygame.mixer.Sound.play(gameoversound)
     pygame.mixer.music.stop()
     while running:
-        running = exit()
+        exit()
 
         # Draw the background and all sprites
         screen.blit(background, (0, 0))
@@ -86,12 +84,16 @@ def highscore():
     all_sprites.add(highscore)
 
 def exit():
+    global running
+    global start
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            return False
+            running = False
+            start = True
         if pygame.key.get_pressed()[pygame.K_ESCAPE]:
-            return False
-    return True
+            running = False
+            start = True
+
 
 
 # Classes
@@ -117,12 +119,16 @@ class Player(pygame.sprite.Sprite):
                 self.rect.y += int((input[1] - 10) * (4 - 1) / (45 - 10) + 1)
 
             # Shooting
-            if input[2] == 1 and time.time() - shot_time >= SHOOT_COOLDOWN:
-                shot_time = time.time()
-                pygame.mixer.Sound.play(shootingsound)
-                bullet = Bullet(self)
-                all_sprites.add(bullet)
-
+            if time.time() - shot_time >= shoot_cooldown:
+                all_sprites.add(laser_ready_text)
+                laser_ready_text.update() 
+                if input[2] == 1:
+                    shot_time = time.time()
+                    pygame.mixer.Sound.play(shootingsound)
+                    bullet = Bullet(self)
+                    all_sprites.add(bullet)
+            else:
+                laser_ready_text.update("kill")
         except IndexError:
             pass
 
@@ -146,10 +152,18 @@ class Bullet(pygame.sprite.Sprite):
     def update(self):
         self.rect.y -= BULLET_SPEED
         if self.rect.bottom < 0:
+            global shoot_cooldown
+            global kill_streak
+            kill_streak = 0
+            kill_streak_text.update("update", "STREAK: {}".format(kill_streak))
+            shoot_cooldown = 0.5
             self.kill()
 
 class Enemy(pygame.sprite.Sprite):
+    amount_of_enemies = 0
+
     def __init__(self, x):
+        Enemy.amount_of_enemies += 1
         super().__init__()
         self.image = pygame.image.load("monster.png")
         self.image = pygame.transform.scale(self.image, (60, 60))
@@ -170,12 +184,11 @@ class Text(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
 
-    def update(self, input=None):
-        if input == "kill":
+    def update(self, update_status=None, input=None):
+        if update_status == "kill":
             self.kill()
-        elif input == "update":
-            self.image = self.font.render(str(kill_count), True, (255, 255, 255)) 
-            self.rect.topleft = (30, 30)
+        elif update_status == "update":
+            self.image = self.font.render(str(input), True, (255, 255, 255)) 
 
 # Create a sprite group for all enemies
 enemies = pygame.sprite.Group()
@@ -203,14 +216,10 @@ running = True
 game_header = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, "Impact", 90, "Star Blaster", (255, 255, 255))
 press_start = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 90, "Impact", 30, "Press The Button on Your Controller to Start", (255, 255, 255))
 all_sprites.add(game_header, press_start)
-dir_up = True
-distance_of_text = 10
-counter = 0
 
 while not start:
-
     # Takes event and breaks the while loop
-    running = exit()
+    exit()
     start = not running
 
     # Check for controller input
@@ -240,19 +249,28 @@ press_start.update("kill")
 player = Player(SCREEN_WIDTH/2, SCREEN_HEIGHT)
 all_sprites.add(player)
 
-# initialize time global variables
+# initialize game loop variables and timers
 shot_time = time.time() + 2 # to avoid the first shot immediately
 enemy_spawn_time = time.time() + 1 # to avoid the first enemy spawn immediately
-difficulty = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 40, "Difficulty Increased", (255, 0, 0))
 kill_count = 0
+kill_streak = 0
 kill_count_text = Text(30, 30, "Impact", 20, str(kill_count), (255, 255, 255))
+kill_streak_text = Text(SCREEN_WIDTH - 60, 30, "Impact", 20, "STREAK: {}".format(kill_streak), (255, 255, 255))
 all_sprites.add(kill_count_text)
+all_sprites.add(kill_streak_text)
+laser_ready_text = Text(70, SCREEN_HEIGHT - 30, "Impact", 20, "LASER READY", (255, 255, 255))
 row = 0
+wave_counter = 1
+wave_text = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 40, "Wave {}".format(wave_counter), (255, 0, 0))
+all_sprites.add(wave_text)
+wave_text_timer = time.time()
+pause = False
+
 
 # Game loop
 while running:
     # Takes keyboard input and breaks the while loop if escape is pressed
-    running = exit()
+    exit()
 
     if ser.in_waiting:
         inoInput = ser.readline().decode('utf-8', errors='ignore').strip()
@@ -263,18 +281,24 @@ while running:
             inputArr = [0, 0, 0]
         player.updatePlayer(inputArr)
 
-    # spawns enemies
+    # spawn enemies
     if time.time() - enemy_spawn_time >= enemy_spawn_interval:
         enemies.update(True)
+        enemy_layout = wave(wave_counter)
         enemy_spawn_time = time.time()
-        enemy_layout = wave(counter)
-        for n in range(len(enemy_layout[row])):
-            x = enemy_layout[row][n] * 80
-            enemies.add(Enemy(x))
+        if not pause:
+            for n in range(len(enemy_layout[row])):
+                x = enemy_layout[row][n] * 80
+                enemies.add(Enemy(x))
         if row >= len(enemy_layout) - 1:
-            row = 0
-            if counter < 5:
-                counter += 1
+            pause = True
+            if Enemy.amount_of_enemies == 0:
+                pause = False
+                row = 0
+                wave_counter += 1
+                wave_text = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 40, "Wave {}".format(wave_counter), (255, 0, 0))
+                all_sprites.add(wave_text)
+                wave_text_timer = time.time()
         else:
             row += 1
 
@@ -282,22 +306,15 @@ while running:
     for bullet in all_sprites:
         if isinstance(bullet, Bullet):
             if pygame.sprite.spritecollide(bullet, enemies, True):
+                Enemy.amount_of_enemies -= 1
                 bullet.kill()  # Remove the bullet
                 kill_count += 1
-                kill_count_text.update("update")
+                kill_streak += 1
+                shoot_cooldown *= 0.99
+                kill_count_text.update("update", str(kill_count))
+                kill_streak_text.update("update", "STREAK: {}".format(kill_streak))
 
-                # increase the spawn rate of enemies
-                if kill_count % 5 == 0 and enemy_spawn_interval > 2:
-                    enemy_spawn_interval -= 0.5
-                    all_sprites.add(difficulty)
-                    text_timer = time.time()
-
-    if time.time() - text_timer >= 1:
-        difficulty.update("kill")
-
-    text_timer = time.time()
-
-    if time.time() - text_timer >= 1:
+    if time.time() - wave_text_timer >= 1:
         wave_text.update("kill")
 
     # Update and draw everything
