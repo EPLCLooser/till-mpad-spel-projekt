@@ -33,9 +33,10 @@ void loop() {
     buttonPress = 1;
   }
 
+  // Gets the tilt angle and button input and makes it into a string
   mpu.update();
   angleX = mpu.getAngleX();
   angleY = mpu.getAngleY();
   message = String(angleX) + " " + String(angleY) + " " + String(buttonPress);
-  Serial.println(message);
+  Serial.println(message); //String is printed in the serial port
 }

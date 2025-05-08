@@ -1,3 +1,9 @@
+# File: main.py
+# Author: Lucas Norrflod
+# Date: 8/5-2025
+# Description: This is a 2d game where you control the player with an array that comes from the serial port. The game is about you trying to kill aliens coming down the screen and you shoot them in order to get a high score. The game include waves and a way to save your highscore
+
+# import libraries
 import serial.tools.list_ports
 import time
 import pygame
@@ -29,6 +35,9 @@ pygame.mixer.music.play(-1)
 gameoversound = pygame.mixer.Sound('gameover_sound.mp3')
 shootingsound = pygame.mixer.Sound('shooting_sound.mp3')
 
+# Creates a wave pattern that enemies will spawn in and decreases the interval for enemy spawn time
+# Parameters: wave_num: integer that decides the wave number
+# Returns the wave pattern as a 2d array
 def wave(wave_num):
     global enemy_spawn_interval
     if enemy_spawn_interval > 2:
@@ -38,7 +47,7 @@ def wave(wave_num):
         wave_num = random.randrange(2, 6)
     
     if wave_num == 1:
-        pattern = [[2, 5, 6, 9], [2, 3, 8, 9], [1, 4, 7, 10]]
+        pattern = [[2, 5, 6, 9], [2, 3, 8, 9], [1, 4, 7, 10]] #The inner array are the positions that the enemies will spawn in
     elif wave_num == 2:
         pattern = [[1, 3, 5, 7, 9], [2, 4, 6, 8, 10], [1, 3, 5, 7, 9], [2, 4, 6, 8, 10]]
     elif wave_num == 3:
@@ -52,7 +61,7 @@ def wave(wave_num):
     return pattern
 
 
-# game over function
+# When player lose this function runs the game-over-screen and shows the high score
 def gameOver():
     global kill_count
     global running
@@ -70,6 +79,7 @@ def gameOver():
         pygame.display.update()
     return
 
+# Takes the global kill_count variable and changes the highscore text-file if it is higher
 def highscore():
     global kill_count
     highscore = open("high_score.txt")
@@ -83,6 +93,7 @@ def highscore():
         highscore = Text(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 90, "Impact", 90, "High Score: {}".format(highscore_value), (255, 0, 0))
     all_sprites.add(highscore)
 
+# Checks if escape key is pressed and closes the program if that is true
 def exit():
     global running
     global start
@@ -94,8 +105,6 @@ def exit():
             running = False
             start = True
 
-
-
 # Classes
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -106,6 +115,8 @@ class Player(pygame.sprite.Sprite):
         self.rect.centerx = x
         self.rect.bottom = y
 
+    # moves the player depending on input
+    # parameter: input: array of y and x tilt-angle
     def updatePlayer(self, input):
         global shot_time
         try:
@@ -118,7 +129,7 @@ class Player(pygame.sprite.Sprite):
             elif input[1] >= 10:
                 self.rect.y += int((input[1] - 10) * (4 - 1) / (45 - 10) + 1)
 
-            # Shooting
+            # Checks if shooting cooldown is done and shows the player that it is ready. Then it checks if the button is pressed and then spawns in the bullet objekt
             if time.time() - shot_time >= shoot_cooldown:
                 all_sprites.add(laser_ready_text)
                 laser_ready_text.update() 
@@ -131,6 +142,7 @@ class Player(pygame.sprite.Sprite):
                 laser_ready_text.update("kill")
         except IndexError:
             pass
+            print("Invalid input array length: {}".format(len(input)))
 
         # Keep the player within screen boundaries
         self.rect.clamp_ip(pygame.Rect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -149,6 +161,7 @@ class Bullet(pygame.sprite.Sprite):
         self.rect.centerx = player.rect.centerx
         self.rect.top = player.rect.top
 
+    # Moves the bullet upwards and when it is of screen it self kills
     def update(self):
         self.rect.y -= BULLET_SPEED
         if self.rect.bottom < 0:
@@ -170,6 +183,7 @@ class Enemy(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.topright = (x, 0)
 
+    # Moves the enemy down if move is true and runs the gameOver function if an enemy reaches the bottom.
     def update(self, move=False):
         if move:
             self.rect.y += ENEMY_SPEED
@@ -184,6 +198,9 @@ class Text(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
 
+    # Parameters: 
+    # update_status: string either kill, update or None
+    #
     def update(self, update_status=None, input=None):
         if update_status == "kill":
             self.kill()
@@ -272,10 +289,11 @@ while running:
     # Takes keyboard input and breaks the while loop if escape is pressed
     exit()
 
+    # Reads the serialport
     if ser.in_waiting:
-        inoInput = ser.readline().decode('utf-8', errors='ignore').strip()
+        inoInput = ser.readline().decode('utf-8', errors='ignore').strip() #Decode the serial port input
         try:
-            inputArr = list(map(int, inoInput.split(" ")))
+            inputArr = list(map(int, inoInput.split(" "))) #makes inoInput into an array
         except ValueError:
             print(f"Invalid input: {inoInput}")
             inputArr = [0, 0, 0]
@@ -288,11 +306,11 @@ while running:
         enemy_spawn_time = time.time()
         if not pause:
             for n in range(len(enemy_layout[row])):
-                x = enemy_layout[row][n] * 80
-                enemies.add(Enemy(x))
+                x = enemy_layout[row][n] * 80 # Spawns the enemy of the position that it is assigned
+                enemies.add(Enemy(x)) #adds Enemy to the enemy group
         if row >= len(enemy_layout) - 1:
             pause = True
-            if Enemy.amount_of_enemies == 0:
+            if Enemy.amount_of_enemies == 0: #Waits for all enemies to be killed before the next wave
                 pause = False
                 row = 0
                 wave_counter += 1
@@ -302,7 +320,7 @@ while running:
         else:
             row += 1
 
-    # Check for collisions between bullets and enemies
+    # Check for collisions between bullets and enemies and adds points to score and streak
     for bullet in all_sprites:
         if isinstance(bullet, Bullet):
             if pygame.sprite.spritecollide(bullet, enemies, True):
@@ -310,7 +328,7 @@ while running:
                 bullet.kill()  # Remove the bullet
                 kill_count += 1
                 kill_streak += 1
-                shoot_cooldown *= 0.99
+                shoot_cooldown *= 0.99 #decreases the shoot cooldown by one percent
                 kill_count_text.update("update", str(kill_count))
                 kill_streak_text.update("update", "STREAK: {}".format(kill_streak))
 
